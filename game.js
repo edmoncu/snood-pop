@@ -18,6 +18,7 @@ const ORIGIN_X = 86;
 const ORIGIN_Y = 78;
 const ROWS = 13;
 const COLS = 12;
+const FINAL_LEVEL = 5;
 const COLORS = [
   { fill: "#ff5d73", shade: "#b32542", eye: "#3a0c16" },
   { fill: "#42d392", shade: "#16895b", eye: "#052f22" },
@@ -49,7 +50,7 @@ function randomColor() {
 }
 
 function rowLength(row) {
-  return row % 2 === 0 ? COLS : COLS - 1;
+  return COLS;
 }
 
 function cellToPixel(row, col) {
@@ -83,7 +84,7 @@ function neighbors(row, col) {
 
 function reset() {
   grid = Array.from({ length: ROWS }, (_, row) => Array(rowLength(row)).fill(null));
-  const startRows = Math.min(6 + level, 10);
+  const startRows = Math.min(5 + level, 10);
   for (let row = 0; row < startRows; row++) {
     for (let col = 0; col < rowLength(row); col++) {
       if (row > 3 && Math.random() < 0.18) continue;
@@ -139,40 +140,34 @@ function shoot() {
 
 function placeShooter() {
   const target = pixelToCell(shooter.x, shooter.y);
-  const row = Math.max(0, Math.min(ROWS - 1, target.row));
-  let col = Math.max(0, Math.min(rowLength(row) - 1, target.col));
+  const landing = findLandingCell(target.row, target.col);
 
-  if (grid[row][col] !== null) {
-    let best = null;
-    for (const n of neighbors(row, col)) {
-      if (grid[n.row][n.col] === null) {
-        const p = cellToPixel(n.row, n.col);
-        const dist = (p.x - shooter.x) ** 2 + (p.y - shooter.y) ** 2;
-        if (!best || dist < best.dist) best = { ...n, dist };
-      }
+  if (!landing) {
+    showOverlay("Game over", "No safe landing spaces remain.", "Try again");
+    state = "ended";
+    return;
+  }
+
+  grid[landing.row][landing.col] = shooter.color;
+  resolve(landing.row, landing.col);
+
+  if (countPieces() === 0) {
+    if (level >= FINAL_LEVEL) {
+      score += 5000;
+      updateStats();
+      showOverlay("You win!", "You cleared the final board.", "Play again");
+      state = "won";
+      return;
     }
-    if (best) {
-      grid[best.row][best.col] = shooter.color;
-      resolve(best.row, best.col);
-    } else {
-      grid[row][col] = shooter.color;
-      resolve(row, col);
-    }
-  } else {
-    grid[row][col] = shooter.color;
-    resolve(row, col);
+    level += 1;
+    showOverlay("Cleared!", `Level ${level} is ready. Clear level ${FINAL_LEVEL} to win.`, "Next level");
+    state = "level";
+    return;
   }
 
   if (dropCounter >= 6) {
     dropCounter = 0;
     descend();
-  }
-
-  if (countPieces() === 0) {
-    level += 1;
-    showOverlay("Cleared!", "Level up. The next board is a little meaner.", "Next level");
-    state = "level";
-    return;
   }
 
   if (isDanger()) {
@@ -183,6 +178,31 @@ function placeShooter() {
 
   shooter = makeShooter(nextColor);
   nextColor = randomColor();
+}
+
+function findLandingCell(row, col) {
+  const start = {
+    row: Math.max(0, Math.min(ROWS - 1, row)),
+    col: Math.max(0, Math.min(COLS - 1, col))
+  };
+  if (isOpenLanding(start.row, start.col)) return start;
+
+  let best = null;
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < rowLength(r); c++) {
+      if (!isOpenLanding(r, c)) continue;
+      const p = cellToPixel(r, c);
+      const dist = (p.x - shooter.x) ** 2 + (p.y - shooter.y) ** 2;
+      if (!best || dist < best.dist) best = { row: r, col: c, dist };
+    }
+  }
+  return best;
+}
+
+function isOpenLanding(row, col) {
+  if (grid[row][col] !== null) return false;
+  if (row === 0) return true;
+  return neighbors(row, col).some((n) => grid[n.row][n.col] !== null);
 }
 
 function resolve(row, col) {
@@ -254,12 +274,9 @@ function popCells(cells, impulse) {
 
 function descend() {
   for (let row = ROWS - 1; row > 0; row--) {
-    for (let col = 0; col < rowLength(row); col++) {
-      const fromCol = Math.min(col, rowLength(row - 1) - 1);
-      grid[row][col] = grid[row - 1][fromCol];
-    }
+    grid[row] = grid[row - 1].slice();
   }
-  for (let col = 0; col < rowLength(0); col++) grid[0][col] = Math.random() < 0.75 ? randomColor() : null;
+  grid[0] = Array.from({ length: COLS }, () => (Math.random() < 0.75 ? randomColor() : null));
 }
 
 function countPieces() {
