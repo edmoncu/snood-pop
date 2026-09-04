@@ -75,6 +75,10 @@ function keepShotsPlayable() {
   if (!colors.includes(nextColor)) nextColor = randomColorFrom(colors);
 }
 
+function refreshIdleShots() {
+  if (state === "playing" && !shooter.moving) keepShotsPlayable();
+}
+
 function rowLength(row) {
   return COLS;
 }
@@ -155,6 +159,7 @@ function updateAim(clientX, clientY) {
 
 function shoot() {
   if (state !== "playing" || shooter.moving) return;
+  keepShotsPlayable();
   const speed = 13.8;
   shooter.vx = Math.cos(aim) * speed;
   shooter.vy = Math.sin(aim) * speed;
@@ -329,6 +334,8 @@ function showOverlay(title, text, button) {
 }
 
 function step() {
+  refreshIdleShots();
+
   if (shooter.moving) {
     shooter.x += shooter.vx;
     shooter.y += shooter.vy;
