@@ -44,9 +44,35 @@ function colorPool() {
   return COLORS.slice(0, Math.min(4 + Math.floor((level - 1) / 2), COLORS.length));
 }
 
+function randomColorFrom(pool) {
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
 function randomColor() {
   const pool = colorPool();
   return Math.floor(Math.random() * pool.length);
+}
+
+function remainingColors() {
+  const colors = new Set();
+  for (const row of grid) {
+    for (const color of row) {
+      if (color !== null) colors.add(color);
+    }
+  }
+  return [...colors];
+}
+
+function randomPlayableColor() {
+  const colors = remainingColors();
+  return colors.length ? randomColorFrom(colors) : randomColor();
+}
+
+function keepShotsPlayable() {
+  const colors = remainingColors();
+  if (!colors.length) return;
+  if (!colors.includes(shooter.color)) shooter.color = randomColorFrom(colors);
+  if (!colors.includes(nextColor)) nextColor = randomColorFrom(colors);
 }
 
 function rowLength(row) {
@@ -91,8 +117,8 @@ function reset() {
       grid[row][col] = randomColor();
     }
   }
-  shooter = makeShooter(randomColor());
-  nextColor = randomColor();
+  shooter = makeShooter(randomPlayableColor());
+  nextColor = randomPlayableColor();
   aim = -Math.PI / 2;
   state = "playing";
   sparks = [];
@@ -176,8 +202,9 @@ function placeShooter() {
     return;
   }
 
+  keepShotsPlayable();
   shooter = makeShooter(nextColor);
-  nextColor = randomColor();
+  nextColor = randomPlayableColor();
 }
 
 function findLandingCell(row, col) {
@@ -276,7 +303,11 @@ function descend() {
   for (let row = ROWS - 1; row > 0; row--) {
     grid[row] = grid[row - 1].slice();
   }
-  grid[0] = Array.from({ length: COLS }, () => (Math.random() < 0.75 ? randomColor() : null));
+  const colors = remainingColors();
+  grid[0] = Array.from({ length: COLS }, () => {
+    if (Math.random() >= 0.75) return null;
+    return colors.length ? randomColorFrom(colors) : randomColor();
+  });
 }
 
 function countPieces() {
